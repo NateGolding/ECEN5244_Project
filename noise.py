@@ -25,7 +25,8 @@ def structured_noise(Rnn, nsamples=1):
         raise Exception(f"Input matrix Rnn is not square: shape {Rnn.shape}")
     # generate samples
     D, E = np.linalg.eig(Rnn)
-    n = (np.random.randn(Rnn.shape[0], nsamples) + 1j*np.random.randn(Rnn.shape[0], nsamples))/np.sqrt(2)
+    n = (1/np.sqrt(2)) * (np.random.randn(Rnn.shape[0], nsamples) + 
+                            1j*np.random.randn(Rnn.shape[0], nsamples))
     return E @ np.diag(D)**0.5 @ n
 
 

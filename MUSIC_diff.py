@@ -4,6 +4,9 @@ import scipy.signal as ss
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import noise as ns
+
+
 def dB2lin(db):
     return 10**(db/10)
 def lin2dB(db):
@@ -17,18 +20,9 @@ M = 16
 N = 3
 theta = np.deg2rad([-28, 36, 3])
 d = (1/4)
-SNR_dB = -10
+SNR_dB = 0
+cr_min = 0.1
 prom_threshold = 0.01        # pct full scale prominence threshold for Pmusic peak finding
-
-# view array pattern
-th = np.linspace(-np.pi, np.pi, 1024)
-AF = np.empty(1024, 'complex')
-for i in range(1024):
-    AF[i] = np.sum(np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1)))
-fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-ax.set_title("Array Factor (AF)")
-ax.plot(th, lin2dB(np.abs(AF)))
-plt.show()
 
 # generate array manifold
 A = np.exp(-1j*2*np.pi*d*np.sin(theta))**(np.arange(M).reshape(-1,1))
@@ -36,8 +30,9 @@ A = np.exp(-1j*2*np.pi*d*np.sin(theta))**(np.arange(M).reshape(-1,1))
 # generate signals, noise, noiseless/noisy sensor readings
 SNR = dB2lin(SNR_dB)
 npwr = 1/SNR
+Rnn = sc.linalg.toeplitz(np.linspace(npwr, 0.75, M))
 s = (1/np.sqrt(2))*np.random.randn(N,Nsamples) + (1j/np.sqrt(2))*np.random.randn(N,Nsamples)
-n = np.sqrt(npwr/2)*np.random.randn(M,Nsamples) + 1j*(np.sqrt(npwr/2))*np.random.randn(M,Nsamples)
+n = ns.structured_noise(Rnn, Nsamples)
 x = A@s
 y = A@s + n
 
@@ -108,7 +103,7 @@ for a in y_arrivals:
     plt.vlines(a, *plt.ylim(), linestyle='--', color='k', label=f'{round(a, 2)} degrees')
 for a in p_arrivals:
     plt.vlines(a, *plt.ylim(), linestyle='--', color='r', label=f"{round(a, 2)} degrees")
-plt.title(f"Psuedospectrum under Uniform Diagonal Rnn:\nTrue Angles {np.round(np.rad2deg(theta),2)}")
+plt.title(f"Psuedospectrum under Toeplitz Rnn:\nTrue Angles {np.round(np.rad2deg(theta),2)}")
 plt.xlabel("AoA [degrees]")
 plt.ylabel("Spectrum Magnitude [dB]")
 plt.grid()
