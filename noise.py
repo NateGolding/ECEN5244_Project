@@ -30,6 +30,9 @@ def structured_noise(Rnn, nsamples=1):
     return E @ np.diag(D)**0.5 @ n
 
 
+
+
+
 if __name__ == "__main__":
 
     # test structureed noise
