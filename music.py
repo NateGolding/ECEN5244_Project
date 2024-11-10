@@ -10,34 +10,55 @@ import noise as ns
 def dB2lin(db):
     return 10**(db/10)
 
-
 def lin2dB(db):
     return 10*np.log10(db) 
 
+def fourth_cumulant(X):
+    """Compute 4th order cumulant matrix
 
-def get_peaks(X, prom_threshold):
+    @todo Make this more efficient!
+
+    @param[in] X Input data, shape is (Nfeatures x Nsnapshots)
+
+    @retval 4th order cumulant matrix (Nfeatures^2 x Nfeatures^2)
+    """
+    N = X.shape[0]
+    Cxx = np.empty((N*N, N*N), dtype=X.dtype)
+    for n in range(N*N):
+        for m in range(N*N):
+            i,j,k,l = n//N,n%N,m//N,m%N
+            Cxx[n,m] = np.mean(X[i]*X[j].conj()*X[k].conj()*X[l]) \
+                            - np.mean(X[i]*X[j].conj())*np.mean(X[k].conj()*X[l]) \
+                            - np.mean(X[i]*X[k].conj())*np.mean(X[j]*X[l].conj())
+    return Cxx
+
+
+def get_peaks(X, prom_threshold, Nmax=np.inf):
     """Get peaks of a vector using prominence
 
     @param[in] X vector to find peak in
     @param[in] prom_threshold Prominence threshold as a % of full scale
+    @param[in] Nmax Maximum number of peaks to detect (default np.inf, no limit)
 
     @retval Peak indices
     """
-    peaks, _ = ss.find_peaks(X, prominence=(prom_threshold*abs(np.max(X)-np.min(X))))
-    return peaks
+    peaks, properties = ss.find_peaks(X, prominence=(prom_threshold*abs(np.max(X)-np.min(X))))
+    peaks = peaks[np.argsort(properties['prominences'])[::-1]]
+    return peaks[:min(peaks.size, Nmax)]
 
 
 def _base_music(Ryy, Nsignals, prom_threshold=0.01):
     """MUSIC base algorithm for standard and covariance differencing
 
     @param[in] Ryy Array covariance matrix (M,M)
-    @param[in] Nsignals Presumed number of siganls
+    @param[in] Nsignals Presumed number of incident signals
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
     @retval Angles in degrees (x-axis for psuedospectrum)
-    @retval Peaks in psuedospectrum with prominence above prom_threshold
+    @retval Peaks in psuedospectrum with prominence above prom_threshold (as indices)
     """
+    M = Ryy.shape[0]
     # eigendecomp, noise subspace extraction
     Dy,Uy = np.linalg.eig(Ryy)
     Un = Uy[:,(M-Nsignals):]
@@ -50,10 +71,39 @@ def _base_music(Ryy, Nsignals, prom_threshold=0.01):
         a_th = np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1))
         Py[i] = 1/np.abs((a_th.conj().T)@Un@(Un.conj().T)@a_th).item()
     th = np.rad2deg(th)
-    y_peaks = get_peaks(Py, prom_threshold)
+    y_peaks = get_peaks(Py, prom_threshold, Nsignals)
 
     return Py, th, y_peaks
 
+
+def _cumulant_base_music(Cyy, Nsignals, prom_threshold=0.01):
+    """MUSIC base algorithm for cumulant-based methods
+
+    @param[in] Cyy 4th order cumulant matrix (M^2,M^2)
+    @param[in] Nsignals Presumed number of incident signals
+    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
+
+    @retval MUSIC psuedospectrum
+    @retval Angles in degrees (x-axis for spectrum)
+    @retval Peaks in psuedospectrum with prominence above prom_threshold (as indices)
+    """
+    # eigendecomp, noise subspace extraction
+    Dy,Uy = np.linalg.eig(Cyy)
+    Un = Uy[:,(Cyy.shape[0] - Nsignals**2):]
+
+    # compute MUSIC psuedospectrum
+    Npts = 2048
+    Py = np.empty(Npts)
+    th = np.linspace(-np.pi/2, np.pi/2, Npts)
+    for i in range(Npts):    
+        a_th = np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1))
+        w = np.kron(a_th, a_th.conj()).conj().T @ Un
+        Py[i] = 1/np.abs(w @ w.conj().T).item()
+    Py = Py[::-1]
+    th = np.rad2deg(th)
+    y_peaks = get_peaks(Py, prom_threshold, Nsignals)
+
+    return Py, th, y_peaks
 
 def music_standard(y, Nsignals, prom_threshold=0.01):
     """Run the standard MUSIC algorithm on received data
@@ -120,6 +170,20 @@ def music_diagonal_difference(y, Nsignals, rho=0.98, prom_threshold=0.01):
 
     return _base_music(Ryy, Nsignals, prom_threshold=prom_threshold)
 
+def music_cumulants(y, Nsignals, prom_threshold=0.01):
+    """Run 4th order cumulants method on recieved data
+
+    @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
+    @param[in] Nsignals Presumed number of siganls
+    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
+
+    @retval MUSIC psuedospectrum
+    @retval Angles in degrees (x-axis for psuedospectrum)
+    @retval Peaks in psuedospectrum with prominence above prom_threshold
+    """
+    Cyy = fourth_cumulant(y)
+    return _cumulant_base_music(Cyy, Nsignals, prom_threshold=0.01)
+
 
 def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
     """Forms the MUSIC spectrum plot
@@ -152,6 +216,39 @@ def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
         ax.set_ylabel("Magnitude [dB]")
         ax.grid()
         ax.legend()
+
+
+def plot_spectrum_polar(th, P, title="MUSIC"):
+    fig, ax = plt.subplots(subplot_kw={'projection' : 'polar'})
+    ax.plot(np.deg2rad(th), lin2dB(np.abs(P)))
+    plt.show()
+
+
+def plot_covariance_cumulant(X, name=''):
+    """Plot covariance and 4th cumulant matrices side-by-side
+
+    @param[in] X Input signal matrix (M,Nsamples)
+    @param[in] name Name of the signal (str, to be used in title)
+    """
+    Rxx = (1/X.shape[-1])*(X @ X.conj().T)
+    Cxx = fourth_cumulant(X)
+
+    Drx, Urx = np.linalg.eig(Rxx)
+    Dcx, Ucx = np.linalg.eig(Cxx)
+
+    fig, ax = plt.subplots(2,2)
+
+    ax[0,0].set_title(name + " Covariance Matrix")
+    sns.heatmap(np.abs(Rxx), ax=ax[0,0], annot=False)
+    ax[0,1].set_title(name + " Covariance Eigenvalues")
+    sns.heatmap(np.abs(np.diag(Drx)), ax=ax[0,1], annot=False)
+
+    ax[1,0].set_title(name + " Cumulant Matrix")
+    sns.heatmap(np.abs(Cxx), ax=ax[1,0], annot=False)
+    ax[1,1].set_title(name + " Cumulant Eigenvalues")
+    sns.heatmap(np.abs(np.diag(Dcx)), ax=ax[1,1], annot=False)
+
+    plt.show()
 
 
 def plot_covariances(s, x, y, n):
@@ -192,10 +289,10 @@ if __name__ == "__main__":
     ## ULA configuration:
     # 3 signals -> 0, -15, 20 degrees
     # 8 sensors -> lambda/4 separation
-    Nsamples = 1024
+    Nsamples = 2048
     M = 16
-    N = 3
-    theta = np.deg2rad([-28, 36, 3])
+    N = 1
+    theta = np.deg2rad([-15])
     d = (1/4)
     SNR_dB = 0
     cr_min = 0.1
@@ -205,30 +302,31 @@ if __name__ == "__main__":
     A = np.exp(-1j*2*np.pi*d*np.sin(theta))**(np.arange(M).reshape(-1,1))
    
     # generate signals (uniform power of 1)
-    s = (1/np.sqrt(2))*np.random.randn(N,Nsamples) + (1j/np.sqrt(2))*np.random.randn(N,Nsamples)
+    #s = (1/np.sqrt(2))*np.random.randn(N,Nsamples) + (1j/np.sqrt(2))*np.random.randn(N,Nsamples)
+    s = (1/np.sqrt(2))*np.random.choice([1+1j, -1+1j, 1-1j, -1-1j], size=(N,Nsamples))
  
     # generate noise
     SNR = dB2lin(SNR_dB)
     npwr = 1/SNR
     #Rnn = sc.linalg.toeplitz(np.linspace(npwr, 0.75, M))
-    Rnn = np.diag(np.random.uniform(npwr, 2*npwr, size=M))
+    #Rnn = np.diag(np.random.uniform(npwr, 2*npwr, size=M))
+    Rnn = npwr*np.eye(M)
     n = ns.structured_noise(Rnn, Nsamples)
     
     # generate sensor readings
     x = A@s
     y = A@s + n
 
-    plot_covariances(s,x,y,n)
-    plt.show()
-
     # run MUSIC algorithms
     Py, thy, ypeaks = music_standard(y, N)
     Pd, thd, dpeaks = music_toeplitz_difference(y, N)
-    Pd2, thd2, d2peaks = music_diagonal_difference(y, N, rho=np.exp(1j*0.1))
+    Pd2, thd2, d2peaks = music_diagonal_difference(y, N, rho=0.98)
+    Pc, thc, cpeaks = music_cumulants(y, N)
 
-    fig, ax = plt.subplots(3,1)
+    fig, ax = plt.subplots(4,1)
     plt.suptitle(f"True Angles: {np.rad2deg(theta)}")
     plot_spectrum(thy, Py, ypeaks, title="Standard MUSIC", ax=ax[0])
     plot_spectrum(thd, Pd, dpeaks, title="Toeplitz Covariance Differencing MUSIC", ax=ax[1])
     plot_spectrum(thd2, Pd2, d2peaks, title="Non-Uniform Diagonal Covariance Differencing MUSIC", ax=ax[2])
+    plot_spectrum(thc, Pc, cpeaks, title="4th Cumulant MUSIC", ax=ax[3])
     plt.show()
