@@ -183,5 +183,5 @@ if __name__ == "__main__":
     snr_db = np.linspace(-30, 20, 100)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='standard', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='toeplitz_difference', plot=True)
-    err, avg, std = an.metrics_vs_snr(snr_db, algorithm='diagonal_difference', plot=True)
-    #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='cumulants', plot=True)
+    #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='diagonal_difference', plot=True)
+    err, avg, std = an.metrics_vs_snr(snr_db, algorithm='cumulants', plot=True)

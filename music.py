@@ -110,11 +110,12 @@ def _cumulant_base_music(Cyy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01
         a_th = np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1))
         w = np.kron(a_th, a_th.conj()).conj().T @ Un
         Py[i] = 1/np.abs(w @ w.conj().T).item()
-    Py = Py[::-1]
+    #Py = Py[::-1]
     th = np.rad2deg(th)
     y_peaks = get_peaks(Py, prom_threshold, max_peaks)
 
     return Py, th, y_peaks
+
 
 def music_standard(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """Run the standard MUSIC algorithm on received data
@@ -313,7 +314,7 @@ if __name__ == "__main__":
     N = 1
     theta = np.deg2rad([-15])
     d = (1/4)
-    SNR_dB = 0
+    SNR_dB = 20
     cr_min = 0.1
     prom_threshold = 0.01        # pct full scale prominence threshold for Pmusic peak finding
 
