@@ -40,18 +40,24 @@ def get_peaks(X, prom_threshold, Nmax=np.inf):
     @param[in] prom_threshold Prominence threshold as a % of full scale
     @param[in] Nmax Maximum number of peaks to detect (default np.inf, no limit)
 
-    @retval Peak indices
+    @retval Peak indices sorted in descending prominence order
+    @retval Peak widths corresponding to indices
     """
-    peaks, properties = ss.find_peaks(X, prominence=(prom_threshold*abs(np.max(X)-np.min(X))))
-    peaks = peaks[np.argsort(properties['prominences'])[::-1]]
-    return peaks[:min(peaks.size, Nmax)]
+    fullscale = abs(np.max(X)-np.min(X))
+    peaks, properties = ss.find_peaks(X, prominence=(prom_threshold*fullscale), width=0)
+    idx = np.argsort(properties['prominences'])[::-1]
+    peaks = peaks[idx]
+    #widths = properties['right_bases'][idx] - properties['left_bases'][idx]
+    return peaks[:min(peaks.size, Nmax)] #, widths[:min(widths.size,Nmax)]
 
 
-def _base_music(Ryy, Nsignals, prom_threshold=0.01):
+def _base_music(Ryy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """MUSIC base algorithm for standard and covariance differencing
 
     @param[in] Ryy Array covariance matrix (M,M)
     @param[in] Nsignals Presumed number of incident signals
+    @param[in] d Atennna spacing in wavelengths
+    @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
@@ -70,23 +76,28 @@ def _base_music(Ryy, Nsignals, prom_threshold=0.01):
     for i in range(Npts):    
         a_th = np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1))
         Py[i] = 1/np.abs((a_th.conj().T)@Un@(Un.conj().T)@a_th).item()
+
+    # find peaks in spectrum
     th = np.rad2deg(th)
-    y_peaks = get_peaks(Py, prom_threshold, Nsignals)
+    y_peaks = get_peaks(Py, prom_threshold, max_peaks)
 
     return Py, th, y_peaks
 
 
-def _cumulant_base_music(Cyy, Nsignals, prom_threshold=0.01):
+def _cumulant_base_music(Cyy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """MUSIC base algorithm for cumulant-based methods
 
     @param[in] Cyy 4th order cumulant matrix (M^2,M^2)
     @param[in] Nsignals Presumed number of incident signals
+    @param[in] d Atennna spacing in wavelengths
+    @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
     @retval Angles in degrees (x-axis for spectrum)
     @retval Peaks in psuedospectrum with prominence above prom_threshold (as indices)
     """
+    M = int(np.sqrt(Cyy.shape[0]))
     # eigendecomp, noise subspace extraction
     Dy,Uy = np.linalg.eig(Cyy)
     Un = Uy[:,(Cyy.shape[0] - Nsignals**2):]
@@ -101,15 +112,17 @@ def _cumulant_base_music(Cyy, Nsignals, prom_threshold=0.01):
         Py[i] = 1/np.abs(w @ w.conj().T).item()
     Py = Py[::-1]
     th = np.rad2deg(th)
-    y_peaks = get_peaks(Py, prom_threshold, Nsignals)
+    y_peaks = get_peaks(Py, prom_threshold, max_peaks)
 
     return Py, th, y_peaks
 
-def music_standard(y, Nsignals, prom_threshold=0.01):
+def music_standard(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """Run the standard MUSIC algorithm on received data
 
     @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
     @param[in] Nsignals Presumed number of siganls
+    @param[in] d Atennna spacing in wavelengths
+    @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
@@ -122,14 +135,16 @@ def music_standard(y, Nsignals, prom_threshold=0.01):
     # compute array covariance
     Ryy = (1/Nsamples) * y@(y.conj().T)
 
-    return _base_music(Ryy, Nsignals, prom_threshold=prom_threshold)
+    return _base_music(Ryy, Nsignals, d, max_peaks=max_peaks, prom_threshold=prom_threshold)
 
 
-def music_toeplitz_difference(y, Nsignals, prom_threshold=0.01):
+def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """Run covariance differencing with Toeplitz assumption on received data
 
     @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
     @param[in] Nsignals Presumed number of siganls
+    @param[in] d Atennna spacing in wavelengths
+    @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
@@ -144,15 +159,17 @@ def music_toeplitz_difference(y, Nsignals, prom_threshold=0.01):
     J = np.eye(M,M)[::-1, :]
     Ryy = Ryy - J@Ryy@J
 
-    return _base_music(Ryy, Nsignals, prom_threshold=prom_threshold)
+    return _base_music(Ryy, Nsignals, d, max_peaks=max_peaks, prom_threshold=prom_threshold)
 
 
 
-def music_diagonal_difference(y, Nsignals, rho=0.98, prom_threshold=0.01):
+def music_diagonal_difference(y, Nsignals, d, rho=0.98, max_peaks=np.inf, prom_threshold=0.01):
     """Run covariance differencing with non-uniform diagonal assumption on received data
 
     @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
     @param[in] Nsignals Presumed number of siganls
+    @param[in] d Atennna spacing in wavelengths
+    @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
@@ -168,13 +185,15 @@ def music_diagonal_difference(y, Nsignals, rho=0.98, prom_threshold=0.01):
     Jinv = np.linalg.inv(J)
     Ryy = 1j*(J @ Ryy @ Jinv - Jinv @ Ryy @ J)
 
-    return _base_music(Ryy, Nsignals, prom_threshold=prom_threshold)
+    return _base_music(Ryy, Nsignals, d, max_peaks=max_peaks, prom_threshold=prom_threshold)
 
-def music_cumulants(y, Nsignals, prom_threshold=0.01):
+def music_cumulants(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """Run 4th order cumulants method on recieved data
 
     @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
     @param[in] Nsignals Presumed number of siganls
+    @param[in] d Atennna spacing in wavelengths
+    @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
@@ -182,7 +201,7 @@ def music_cumulants(y, Nsignals, prom_threshold=0.01):
     @retval Peaks in psuedospectrum with prominence above prom_threshold
     """
     Cyy = fourth_cumulant(y)
-    return _cumulant_base_music(Cyy, Nsignals, prom_threshold=0.01)
+    return _cumulant_base_music(Cyy, Nsignals, d, max_peaks=max_peaks, prom_threshold=0.01)
 
 
 def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
@@ -302,8 +321,8 @@ if __name__ == "__main__":
     A = np.exp(-1j*2*np.pi*d*np.sin(theta))**(np.arange(M).reshape(-1,1))
    
     # generate signals (uniform power of 1)
-    #s = (1/np.sqrt(2))*np.random.randn(N,Nsamples) + (1j/np.sqrt(2))*np.random.randn(N,Nsamples)
-    s = (1/np.sqrt(2))*np.random.choice([1+1j, -1+1j, 1-1j, -1-1j], size=(N,Nsamples))
+    s = (1/np.sqrt(2))*np.random.randn(N,Nsamples) + (1j/np.sqrt(2))*np.random.randn(N,Nsamples)
+    #s = (1/np.sqrt(2))*np.random.choice([1+1j, -1+1j, 1-1j, -1-1j], size=(N,Nsamples))
  
     # generate noise
     SNR = dB2lin(SNR_dB)
@@ -318,10 +337,10 @@ if __name__ == "__main__":
     y = A@s + n
 
     # run MUSIC algorithms
-    Py, thy, ypeaks = music_standard(y, N)
-    Pd, thd, dpeaks = music_toeplitz_difference(y, N)
-    Pd2, thd2, d2peaks = music_diagonal_difference(y, N, rho=0.98)
-    Pc, thc, cpeaks = music_cumulants(y, N)
+    Py, thy, ypeaks = music_standard(y, N, d)
+    Pd, thd, dpeaks = music_toeplitz_difference(y, N, d)
+    Pd2, thd2, d2peaks = music_diagonal_difference(y, N, d, rho=0.98)
+    Pc, thc, cpeaks = music_cumulants(y, N, d)
 
     fig, ax = plt.subplots(4,1)
     plt.suptitle(f"True Angles: {np.rad2deg(theta)}")
