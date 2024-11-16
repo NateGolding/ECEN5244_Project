@@ -238,6 +238,22 @@ def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
         ax.legend()
 
 
+def plot_spectrums(angles, spectrums, titles):
+    """Plot multiple MUSIC spectrums
+
+    @param[in] angles List of truth angles
+    @param[in] spectrums List or tuple of spectrum tuples (th, P, peaks)
+    @param[in] titles List of spectrum titles
+    """
+    Nspecs = len(spectrums)
+    fig, ax = plt.subplots(Nspecs, 1)
+    plt.suptitle(f"True Angles: {np.rad2deg(theta)}")
+    for i in range(Nspecs):
+        P, th, peaks = spectrums[i]
+        plot_spectrum(th, P, peaks, ax=ax[i], title=titles[i])
+    plt.show()
+
+
 def plot_spectrum_polar(th, P, title="MUSIC"):
     fig, ax = plt.subplots(subplot_kw={'projection' : 'polar'})
     ax.plot(np.deg2rad(th), lin2dB(np.abs(P)))
@@ -332,21 +348,28 @@ if __name__ == "__main__":
     #Rnn = np.diag(np.random.uniform(npwr, 2*npwr, size=M))
     Rnn = npwr*np.eye(M)
     n = ns.structured_noise(Rnn, Nsamples)
-    
+
     # generate sensor readings
     x = A@s
     y = A@s + n
 
     # run MUSIC algorithms
-    Py, thy, ypeaks = music_standard(y, N, d)
-    Pd, thd, dpeaks = music_toeplitz_difference(y, N, d)
-    Pd2, thd2, d2peaks = music_diagonal_difference(y, N, d, rho=0.98)
-    Pc, thc, cpeaks = music_cumulants(y, N, d)
+    std = music_standard(y, N, d)
+    toep = music_toeplitz_difference(y, N, d)
+    diag = music_diagonal_difference(y, N, d, rho=0.98)
+    cum = music_cumulants(y, N, d)
 
-    fig, ax = plt.subplots(4,1)
-    plt.suptitle(f"True Angles: {np.rad2deg(theta)}")
-    plot_spectrum(thy, Py, ypeaks, title="Standard MUSIC", ax=ax[0])
-    plot_spectrum(thd, Pd, dpeaks, title="Toeplitz Covariance Differencing MUSIC", ax=ax[1])
-    plot_spectrum(thd2, Pd2, d2peaks, title="Non-Uniform Diagonal Covariance Differencing MUSIC", ax=ax[2])
-    plot_spectrum(thc, Pc, cpeaks, title="4th Cumulant MUSIC", ax=ax[3])
-    plt.show()
+    specs = [
+        std,
+        toep,
+#        diag,
+#        cum,
+    ]
+    titles=[
+        'Standard MUSIC',
+        'Toeplitz Covariance Differencing MUSIC',
+#        'Non-Uniform Diagonal Covariance Differencing MUSIC',
+#        '4th Cumulant MUISC'
+    ]
+
+    plot_spectrums(theta, specs, titles)
