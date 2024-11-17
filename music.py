@@ -1,4 +1,3 @@
-
 import numpy as np
 import scipy as sc
 import scipy.signal as ss
@@ -7,6 +6,70 @@ import seaborn as sns
 
 import noise as ns
 
+class ULA:
+    """1-Dimensional Uniform Linear Array Description"""
+    def __init__(self, Nsamples=1024, M=16, N=3,
+                    theta=np.deg2rad([-15, 3, 8]), d=1/2):
+        self.Nsamples = Nsamples
+        self.M = M
+        self.N = N
+        self.theta = theta
+        self.d = d
+
+    def manifold(self):
+        """Get ULA array manifold (A matrix)"""
+        return np.exp(-1j*2*np.pi*self.d*np.sin(self.theta))**(np.arange(self.M).reshape(-1,1))
+
+    def signals(self, stype='random', pwr=1):
+        """Generate signals for ULA simulator
+
+        @param[in] stype Signal type (random, QPSK)
+        @param[in] pwr Signal power (scalar or array-like of shape (N,))
+
+        @retval Signals - complex valued ndarray (N, Nsamples)
+        """
+        pwr = np.asarray(pwr)
+        if(stype=='random'):
+            return (pwr.reshape(-1,1)/np.sqrt(2))*np.random.randn(self.N,self.Nsamples) + \
+                    (pwr.reshape(-1,1)*1j/np.sqrt(2))*np.random.randn(self.N,self.Nsamples)
+        else:
+            raise NotImplementedError("Only random signals are available for now")
+
+    def AF(self, n=100):
+        """Get ULA array factor
+
+        @param[in] n Number of points in AF
+        @retval Angles for Array Factor - real valued ndarray (n,)
+        @retval Array factor - complex valued ndarray (n,)
+        """
+        # AF_i has shape (M,)
+        # [AF_i(t) for t in th] has shape (n, M)
+        # AF has shape (n,)
+        th = np.linspace(-np.pi/2, np.pi/2, n)
+        AF_i = lambda t : np.exp(-1j*2*np.pi*self.d*np.sin(t))**(np.arange(self.M))
+        return th, (1/self.M)*np.sum([AF_i(t) for t in th], axis=-1)
+
+    def plot_AF(self, n=100, polar=True):
+        """Plot ULA Array Factor
+
+        @param[in] n Number of points in AF
+        @param[in] polar Polar plot (on/off)
+        """
+        th, AF = self.AF(n=n)
+        if(polar):
+            fig, ax = plt.subplots(subplot_kw={'projection' : 'polar'})
+            ax.plot(th, np.abs(AF))
+        else:
+            fig, ax = plt.subplots() 
+            ax.set_xlabel("Angle of Arrival [deg]")
+            ax.set_ylabel("Magnitude [linear]")
+            ax.plot(np.rad2deg(th), np.abs(AF))
+        ax.set_title("ULA Array Factor\n" + \
+                     f"Nsensors: {self.M}\n" + \
+                     f"Separation: {self.d}*lambda")
+        ax.grid(True)
+        plt.show()
+ 
 def dB2lin(db):
     return 10**(db/10)
 
@@ -51,11 +114,11 @@ def get_peaks(X, prom_threshold, Nmax=np.inf):
     return peaks[:min(peaks.size, Nmax)] #, widths[:min(widths.size,Nmax)]
 
 
-def _base_music(Ryy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
+def base_music(Ryy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     """MUSIC base algorithm for standard and covariance differencing
 
     @param[in] Ryy Array covariance matrix (M,M)
-    @param[in] Nsignals Presumed number of incident signals
+    @param[in] Nsignals Presumed number of incident signals (used for subspace formulation)
     @param[in] d Atennna spacing in wavelengths
     @param[in] max_peaks Maximum number of peaks to search for
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
@@ -82,128 +145,6 @@ def _base_music(Ryy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     y_peaks = get_peaks(Py, prom_threshold, max_peaks)
 
     return Py, th, y_peaks
-
-
-def _cumulant_base_music(Cyy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
-    """MUSIC base algorithm for cumulant-based methods
-
-    @param[in] Cyy 4th order cumulant matrix (M^2,M^2)
-    @param[in] Nsignals Presumed number of incident signals
-    @param[in] d Atennna spacing in wavelengths
-    @param[in] max_peaks Maximum number of peaks to search for
-    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
-
-    @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for spectrum)
-    @retval Peaks in psuedospectrum with prominence above prom_threshold (as indices)
-    """
-    M = int(np.sqrt(Cyy.shape[0]))
-    # eigendecomp, noise subspace extraction
-    Dy,Uy = np.linalg.eig(Cyy)
-    Un = Uy[:,(Cyy.shape[0] - Nsignals**2):]
-
-    # compute MUSIC psuedospectrum
-    Npts = 2048
-    Py = np.empty(Npts)
-    th = np.linspace(-np.pi/2, np.pi/2, Npts)
-    for i in range(Npts):    
-        a_th = np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1))
-        w = np.kron(a_th, a_th.conj()).conj().T @ Un
-        Py[i] = 1/np.abs(w @ w.conj().T).item()
-    #Py = Py[::-1]
-    th = np.rad2deg(th)
-    y_peaks = get_peaks(Py, prom_threshold, max_peaks)
-
-    return Py, th, y_peaks
-
-
-def music_standard(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
-    """Run the standard MUSIC algorithm on received data
-
-    @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
-    @param[in] Nsignals Presumed number of siganls
-    @param[in] d Atennna spacing in wavelengths
-    @param[in] max_peaks Maximum number of peaks to search for
-    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
-
-    @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
-    @retval Peaks in psuedospectrum with prominence above prom_threshold
-    """
-    M = y.shape[0]
-    Nsamples = y.shape[-1]
-
-    # compute array covariance
-    Ryy = (1/Nsamples) * y@(y.conj().T)
-
-    return _base_music(Ryy, Nsignals, d, max_peaks=max_peaks, prom_threshold=prom_threshold)
-
-
-def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
-    """Run covariance differencing with Toeplitz assumption on received data
-
-    @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
-    @param[in] Nsignals Presumed number of siganls
-    @param[in] d Atennna spacing in wavelengths
-    @param[in] max_peaks Maximum number of peaks to search for
-    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
-
-    @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
-    @retval Peaks in psuedospectrum with prominence above prom_threshold
-    """
-    M = y.shape[0]
-    Nsamples = y.shape[-1]
-
-    # compute array covariance, apply differencing
-    Ryy = (1/Nsamples) * y@(y.conj().T)
-    J = np.eye(M,M)[::-1, :]
-    Ryy = Ryy - J@Ryy@J
-
-    return _base_music(Ryy, Nsignals, d, max_peaks=max_peaks, prom_threshold=prom_threshold)
-
-
-
-def music_diagonal_difference(y, Nsignals, d, rho=0.98, max_peaks=np.inf, prom_threshold=0.01):
-    """Run covariance differencing with non-uniform diagonal assumption on received data
-
-    @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
-    @param[in] Nsignals Presumed number of siganls
-    @param[in] d Atennna spacing in wavelengths
-    @param[in] max_peaks Maximum number of peaks to search for
-    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
-
-    @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
-    @retval Peaks in psuedospectrum with prominence above prom_threshold
-    """
-    M = y.shape[0]
-    Nsamples = y.shape[-1]
-
-    # compute array covariance, apply differencing
-    Ryy = (1/Nsamples) * y@(y.conj().T)
-    J = np.diag(rho**np.arange(M))
-    Jinv = np.linalg.inv(J)
-    Ryy = 1j*(J @ Ryy @ Jinv - Jinv @ Ryy @ J)
-
-    return _base_music(Ryy, Nsignals, d, max_peaks=max_peaks, prom_threshold=prom_threshold)
-
-def music_cumulants(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
-    """Run 4th order cumulants method on recieved data
-
-    @param[in] y Received data (y = As + n) of shape (# antennas, # samples)
-    @param[in] Nsignals Presumed number of siganls
-    @param[in] d Atennna spacing in wavelengths
-    @param[in] max_peaks Maximum number of peaks to search for
-    @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
-
-    @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
-    @retval Peaks in psuedospectrum with prominence above prom_threshold
-    """
-    Cyy = fourth_cumulant(y)
-    return _cumulant_base_music(Cyy, Nsignals, d, max_peaks=max_peaks, prom_threshold=0.01)
-
 
 def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
     """Forms the MUSIC spectrum plot
@@ -237,7 +178,6 @@ def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
         ax.grid()
         ax.legend()
 
-
 def plot_spectrums(angles, spectrums, titles):
     """Plot multiple MUSIC spectrums
 
@@ -253,12 +193,10 @@ def plot_spectrums(angles, spectrums, titles):
         plot_spectrum(th, P, peaks, ax=ax[i], title=titles[i])
     plt.show()
 
-
 def plot_spectrum_polar(th, P, title="MUSIC"):
     fig, ax = plt.subplots(subplot_kw={'projection' : 'polar'})
     ax.plot(np.deg2rad(th), lin2dB(np.abs(P)))
     plt.show()
-
 
 def plot_covariance_cumulant(X, name=''):
     """Plot covariance and 4th cumulant matrices side-by-side
@@ -285,7 +223,6 @@ def plot_covariance_cumulant(X, name=''):
     sns.heatmap(np.abs(np.diag(Dcx)), ax=ax[1,1], annot=False)
 
     plt.show()
-
 
 def plot_covariances(s, x, y, n):
     """Plot the covariance matrices for the simulation on heatmap
@@ -327,10 +264,10 @@ if __name__ == "__main__":
     # 8 sensors -> lambda/4 separation
     Nsamples = 2048
     M = 16
-    N = 1
-    theta = np.deg2rad([-15])
+    N = 3
+    theta = np.deg2rad([-15, 3, 8])
     d = (1/4)
-    SNR_dB = 20
+    SNR_dB = 10
     cr_min = 0.1
     prom_threshold = 0.01        # pct full scale prominence threshold for Pmusic peak finding
 
@@ -357,7 +294,7 @@ if __name__ == "__main__":
     std = music_standard(y, N, d)
     toep = music_toeplitz_difference(y, N, d)
     diag = music_diagonal_difference(y, N, d, rho=0.98)
-    cum = music_cumulants(y, N, d)
+#    cum = music_cumulants(y, N, d)
 
     specs = [
         std,
