@@ -17,7 +17,7 @@ def music_cumulants(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
+    @retval Angles in radians (x-axis for psuedospectrum)
     @retval Peaks in psuedospectrum with prominence above prom_threshold
     """
     M = y.shape[0]
@@ -35,8 +35,6 @@ def music_cumulants(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
         a_th = np.exp(-1j*2*np.pi*d*np.sin(th[i]))**(np.arange(M).reshape(-1,1))
         w = np.kron(a_th, a_th.conj()).conj().T @ Un
         Py[i] = 1/np.abs(w @ w.conj().T).item()
-    #Py = Py[::-1]
-    th = np.rad2deg(th)
     y_peaks = get_peaks(Py, prom_threshold, max_peaks)
 
     return Py, th, y_peaks

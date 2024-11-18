@@ -8,6 +8,11 @@ import sys
 import noise
 import music
 
+from standard_music import *
+from toeplitz_music import *
+from diagonal_music import *
+from cumulant_music import *
+
 def dB2lin(db):
     return 10**(db/10)
 
@@ -104,19 +109,22 @@ class MUSICAnalyzer():
 
             # run MUSIC algorithm
             if algorithm=='standard':
-                Py, thy, ypeaks = music.music_standard(y, self.N, self.d,
+                Py, thy, ypeaks = music_standard(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             elif algorithm=='toeplitz_difference':
-                Py, thy, ypeaks = music.music_toeplitz_difference(y, self.N, self.d,
+                Py, thy, ypeaks = music_toeplitz_difference(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             elif algorithm=='diagonal_difference':
-                Py, thy, ypeaks = music.music_diagonal_difference(y, self.N, self.d,
+                Py, thy, ypeaks = music_diagonal_difference(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             elif algorithm=='cumulants':
-                Py, thy, ypeaks = music.music_cumulants(y, self.N, self.d,
+                Py, thy, ypeaks = music_cumulants(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             else:
                 raise Exception(f"[ERROR] Algorithm {algorithm} is not recognized")
+
+            # convert ot degrees
+            thydeg = np.rad2deg(thy)
 
             # animated plotting
             if(plot):
@@ -127,15 +135,15 @@ class MUSICAnalyzer():
                             f" Psuedospectrum\nSNR: {round(snr_db[i], 2)}dB")
                 plt.xlabel("Angle of Arrival [deg]")
                 plt.ylabel("Magnitude [dB]")
-                plt.plot(thy, lin2dB(np.abs(Py)))
+                plt.plot(thydeg, lin2dB(np.abs(Py)))
                 plt.vlines(self.anglesdeg, *plt.ylim(), linestyle='--', color='k')
-                plt.vlines(thy[ypeaks], *plt.ylim(), linestyle='--', color='r')
+                plt.vlines(thydeg[ypeaks], *plt.ylim(), linestyle='--', color='r')
                 plt.grid()
                 plt.pause(0.05)
 
             # compute # of detected peaks
             Npeaks[i] = ypeaks.size
-            estimate = thy[ypeaks[:self.N]]
+            estimate = thydeg[ypeaks[:self.N]]
 
             # arrange truth angles to minimize error
             cost = np.abs(self.anglesdeg[:,None] - estimate[None,:])
@@ -215,19 +223,22 @@ class MUSICAnalyzer():
 
             # run MUSIC algorithm
             if algorithm=='standard':
-                Py, thy, ypeaks = music.music_standard(y, self.N, self.d,
+                Py, thy, ypeaks = music_standard(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             elif algorithm=='toeplitz_difference':
-                Py, thy, ypeaks = music.music_toeplitz_difference(y, self.N, self.d,
+                Py, thy, ypeaks = music_toeplitz_difference(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             elif algorithm=='diagonal_difference':
-                Py, thy, ypeaks = music.music_diagonal_difference(y, self.N, self.d,
+                Py, thy, ypeaks = music_diagonal_difference(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             elif algorithm=='cumulants':
-                Py, thy, ypeaks = music.music_cumulants(y, self.N, self.d,
+                Py, thy, ypeaks = music_cumulants(y, self.N, self.d,
                                     max_peaks=np.inf, prom_threshold=prom_threshold)
             else:
                 raise Exception(f"[ERROR] Algorithm {algorithm} is not recognized")
+
+            # convert to degrees
+            thydeg = np.rad2deg(thy)
 
             # animated plotting
             if(plot):
@@ -238,15 +249,15 @@ class MUSICAnalyzer():
                             f" Psuedospectrum\nSNR: {Nsamples[i]} samples")
                 plt.xlabel("Angle of Arrival [deg]")
                 plt.ylabel("Magnitude [dB]")
-                plt.plot(thy, lin2dB(np.abs(Py)))
+                plt.plot(thydeg, lin2dB(np.abs(Py)))
                 plt.vlines(self.anglesdeg, *plt.ylim(), linestyle='--', color='k')
-                plt.vlines(thy[ypeaks], *plt.ylim(), linestyle='--', color='r')
+                plt.vlines(thydeg[ypeaks], *plt.ylim(), linestyle='--', color='r')
                 plt.grid()
                 plt.pause(0.05)
 
             # compute # of detected peaks
             Npeaks[i] = ypeaks.size
-            estimate = thy[ypeaks[:self.N]]
+            estimate = thydeg[ypeaks[:self.N]]
 
             # arrange truth angles to minimize error
             cost = np.abs(self.anglesdeg[:,None] - estimate[None,:])
@@ -358,8 +369,8 @@ if __name__ == "__main__":
    
     Nsamples = np.logspace(1, 6, 25, dtype='int') 
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-10, algorithm='standard', plot=True)
-    #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='toeplitz_difference', plot=True)
+    err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-15, algorithm='toeplitz_difference', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='diagonal_difference', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='cumulants', plot=True)
 
-    avg, std = an.metrics(snr_db, Nsamples, algorithm='standard', plot=True)
+    #avg, std = an.metrics(snr_db, Nsamples, algorithm='standard', plot=True)

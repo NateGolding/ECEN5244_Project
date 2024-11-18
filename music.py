@@ -20,7 +20,7 @@ class ULA:
         """Get ULA array manifold (A matrix)"""
         return np.exp(-1j*2*np.pi*self.d*np.sin(self.theta))**(np.arange(self.M).reshape(-1,1))
 
-    def signals(self, stype='random', pwr=1):
+    def signals(self, stype='random', pwr=1, cmplx=True):
         """Generate signals for ULA simulator
 
         @param[in] stype Signal type (random, QPSK)
@@ -30,8 +30,11 @@ class ULA:
         """
         pwr = np.asarray(pwr)
         if(stype=='random'):
-            return (pwr.reshape(-1,1)/np.sqrt(2))*np.random.randn(self.N,self.Nsamples) + \
-                    (pwr.reshape(-1,1)*1j/np.sqrt(2))*np.random.randn(self.N,self.Nsamples)
+            if(cmplx):
+                return (pwr.reshape(-1,1)/np.sqrt(2))*np.random.randn(self.N,self.Nsamples) + \
+                            (pwr.reshape(-1,1)*1j/np.sqrt(2))*np.random.randn(self.N,self.Nsamples)
+            else:
+                return (pwr.reshape(-1,1))*np.random.randn(self.N, self.Nsamples)
         else:
             raise NotImplementedError("Only random signals are available for now")
 
@@ -124,7 +127,7 @@ def base_music(Ryy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
     @param[in] prom_threshold Prominence theshold as a % of full scale (default 1%)
 
     @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
+    @retval Angles in radians (x-axis for psuedospectrum)
     @retval Peaks in psuedospectrum with prominence above prom_threshold (as indices)
     """
     M = Ryy.shape[0]
@@ -141,26 +144,25 @@ def base_music(Ryy, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01):
         Py[i] = 1/np.abs((a_th.conj().T)@Un@(Un.conj().T)@a_th).item()
 
     # find peaks in spectrum
-    th = np.rad2deg(th)
     y_peaks = get_peaks(Py, prom_threshold, max_peaks)
-
     return Py, th, y_peaks
+
 
 def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
     """Forms the MUSIC spectrum plot
     
     Must call plt.show() AFTER calling this function
 
-    @param[in] th Angles of the spectrum (xaxis)
+    @param[in] th Angles of the spectrum in radians (xaxis)
     @param[in] P Psuedosepctrum (yaxis)
     @param[in] peaks Peak indices in spectrum
     @param[in] ax Axis to plot on (optional)
     @param[in] title Title to display (optional)
     """
     if(ax is None):
-        plt.plot(th, lin2dB(P), label=label)
+        plt.plot(np.rad2deg(th), lin2dB(P), label=label)
         ylim = plt.ylim()
-        for a in th[peaks]:
+        for a in np.rad2deg(th[peaks]):
             plt.vlines(a, *ylim, linestyle='--', color='k', label=f'{round(a, 2)} degrees')
         plt.title(title)
         plt.xlabel("Angle of Arrival [deg]")
@@ -168,9 +170,9 @@ def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
         plt.grid()
         plt.legend()
     else:
-        ax.plot(th, lin2dB(P))
+        ax.plot(np.rad2deg(th), lin2dB(P))
         ylim = ax.get_ylim()
-        for a in th[peaks]:
+        for a in np.rad2deg(th[peaks]):
             ax.vlines(a, *ylim, linestyle='--', color='k', label=f'{round(a, 2)} degrees')
         ax.set_title(title)
         ax.set_xlabel("Angle of Arrival [deg]")
@@ -181,8 +183,8 @@ def plot_spectrum(th, P, peaks, ax=None, title='MUSIC', label=''):
 def plot_spectrums(angles, spectrums, titles):
     """Plot multiple MUSIC spectrums
 
-    @param[in] angles List of truth angles
-    @param[in] spectrums List or tuple of spectrum tuples (th, P, peaks)
+    @param[in] angles List of truth angles (radians)
+    @param[in] spectrums List or tuple of spectrum tuples (th (radians), P, peaks (indices))
     @param[in] titles List of spectrum titles
     """
     Nspecs = len(spectrums)

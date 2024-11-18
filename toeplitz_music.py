@@ -18,7 +18,7 @@ def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0
     @param[in] plot Turn plotting on/off
 
     @retval MUSIC psuedospectrum
-    @retval Angles in degrees (x-axis for psuedospectrum)
+    @retval Angles in radians (x-axis for psuedospectrum)
     @retval Peaks in psuedospectrum with prominence above prom_threshold
     """
     M = y.shape[0]
@@ -31,7 +31,7 @@ def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0
 
     # eigendecomp, noise subspace extraction
     Dy,Uy = np.linalg.eig(Ryy)
-    Un = Uy[:,(M-Nsignals):]
+    Un = Uy[:,(M-2*Nsignals):]
 
     if(plot):
         plt.figure()
@@ -48,8 +48,16 @@ def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0
         Py[i] = 1/np.abs((a_th.conj().T)@Un@(Un.conj().T)@a_th).item()
 
     # find peaks in spectrum
-    th = np.rad2deg(th)
     y_peaks = get_peaks(Py, prom_threshold, max_peaks)
+
+    # handle spurious bearings
+    bearings = th[y_peaks]
+    A12 = np.exp(-1j*2*np.pi*d*np.sin(bearings))**(np.arange(M).reshape(-1,1))
+    A12_H = A12.conj().T
+    invterm = np.linalg.inv(A12_H@A12)
+    Rss12 = np.diag(invterm @ A12_H @ Ryy @ A12 @ invterm)
+    idx = np.argsort(Rss12)[::-1]
+    y_peaks = (y_peaks[idx])[:Nsignals]
 
     if(plot):
         plt.figure()
@@ -64,7 +72,7 @@ if __name__ == "__main__":
     Nsamples = 1024
     M = 16
     N = 3
-    theta = np.deg2rad([-30, -22, -15])
+    theta = np.deg2rad([-30, 22, -15])
     d = 1/4
     snr_db = 10
    
@@ -89,14 +97,3 @@ if __name__ == "__main__":
 
     # compute music
     P, th, peaks = music_toeplitz_difference(y, N, d, plot=True)
-
-    bearings = np.deg2rad(sorted(th[peaks]))
-    ula12 = ULA(Nsamples=1, M=M, N=N, theta=bearings, d=d)
-    A12 = ula12.manifold()
-    A12_H = A12.conj().T
-    invterm = np.linalg.inv(A12_H@A12)
-    Rss12 = invterm @ A12_H @ Ryy @ A12 @ invterm
-
-    plt.figure()
-    sns.heatmap(np.abs(Rss12), annot=True)
-    plt.show()
