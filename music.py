@@ -66,7 +66,8 @@ class ULA:
             fig, ax = plt.subplots() 
             ax.set_xlabel("Angle of Arrival [deg]")
             ax.set_ylabel("Magnitude [linear]")
-            ax.plot(np.rad2deg(th), np.abs(AF))
+            ax.plot(np.rad2deg(th), lin2dB(np.abs(AF)))
+            ax.hlines([-3], *ax.get_xlim(), color='gray')
         ax.set_title("ULA Array Factor\n" + \
                      f"Nsensors: {self.M}\n" + \
                      f"Separation: {self.d}*lambda")
