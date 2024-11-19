@@ -35,7 +35,7 @@ def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0
 
     if(plot):
         plt.figure()
-        plt.title("Covariance Difference Eigenvalue Matrix")
+        plt.title("Array Covariance Eigenvalue Matrix")
         sns.heatmap(np.diag(np.abs(Dy)), annot=True)
         plt.show()
 
@@ -70,18 +70,16 @@ def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0
 
 if __name__ == "__main__":
     Nsamples = 1024
-    M = 8
+    M = 16
     N = 3
-    theta = np.deg2rad([-30, 22, -15])
-    d = 0.2499
-    snr_db = 10
+    theta = np.deg2rad([-13, 3, 8])
+    d = 1/2
+    snr_db = 20
    
     # generate ULA configuration 
     ula = ULA(Nsamples=Nsamples, M=M, N=N, theta=theta, d=d)
-    ula.plot_AF(polar=False)
-    ula.plot_AF(polar=True)
     A = ula.manifold()
-    s = ula.signals(pwr=[1, 0.8, 0.6])
+    s = ula.signals()
 
     # generate noise
     SNR = dB2lin(snr_db)
@@ -92,10 +90,6 @@ if __name__ == "__main__":
     # generate sensor readings
     x = A@s
     y = x + n
-
-    Ryy = (1/Nsamples) * y@(y.conj().T)
-    J = np.eye(M,M)[::-1, :]
-    Ryy = Ryy - J@Ryy@J
 
     # compute music
     P, th, peaks = music_toeplitz_difference(y, N, d, plot=True)
