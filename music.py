@@ -35,8 +35,23 @@ class ULA:
                             (pwr.reshape(-1,1)*1j/np.sqrt(2))*np.random.randn(self.N,self.Nsamples)
             else:
                 return (pwr.reshape(-1,1))*np.random.randn(self.N, self.Nsamples)
+        elif(stype=='qpsk'):
+            return (1/np.sqrt(2))*np.random.choice([1+1j,-1+1j,1-1j,-1-1j],
+                                size=(self.N, self.Nsamples))
         else:
-            raise NotImplementedError("Only random signals are available for now")
+            raise NotImplementedError(f"{stype} is not available option")
+
+    def noise(self, Rnn=None, snr_db=3):
+        """Generate noise for ULA simulator
+
+        @param[in] Rnn Noise covariance matrix (Nsensors,Nsensors)
+        @param[in] snr_db Signal to noise ratio in decibels
+        """
+        snr = dB2lin(snr_db)
+        npwr = 1/snr
+        Rnn = npwr*np.eye(self.M) if(Rnn is None) else Rnn
+        return ns.structured_noise(Rnn, self.Nsamples)
+
 
     def AF(self, n=100):
         """Get ULA array factor
@@ -52,7 +67,7 @@ class ULA:
         AF_i = lambda t : np.exp(-1j*2*np.pi*self.d*np.sin(t))**(np.arange(self.M))
         return th, (1/self.M)*np.sum([AF_i(t) for t in th], axis=-1)
 
-    def plot_AF(self, n=100, polar=True):
+    def plot_AF(self, n=100, polar=True, hpbwline=False, limit=None):
         """Plot ULA Array Factor
 
         @param[in] n Number of points in AF
@@ -67,7 +82,10 @@ class ULA:
             ax.set_xlabel("Angle of Arrival [deg]")
             ax.set_ylabel("Magnitude [linear]")
             ax.plot(np.rad2deg(th), lin2dB(np.abs(AF)))
-            ax.hlines([-3], *ax.get_xlim(), color='gray')
+            if(hpbwline):
+                ax.hlines([-3], *ax.get_xlim(), color='gray')
+            if(limit is not None):
+                ax.set_ylim(limit, ax.get_ylim()[1])
         ax.set_title("ULA Array Factor\n" + \
                      f"Nsensors: {self.M}\n" + \
                      f"Separation: {self.d}*lambda")

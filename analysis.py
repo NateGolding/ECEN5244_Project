@@ -22,7 +22,7 @@ def lin2dB(db):
 class MUSICAnalyzer():
     """MUSIC Algorithm Performance Analyzer"""
 
-    def __init__(self, angles=np.deg2rad([-11, 3, 20]), Nsensors=16, spacing=(1/4)):
+    def __init__(self, angles=np.deg2rad([-13, 3, 8]), Nsensors=16, spacing=(1/2)):
         """Initialize MUSIC analyzer
 
         @param[in] angles Angles of arrival in radians
@@ -105,6 +105,14 @@ class MUSICAnalyzer():
 
         # run algorithm for each snr value
         for i in range(snr_db.size):
+            
+            # progress bar
+            nchars = 50
+            nhashes = int(nchars*i/snr_db.size + 1)
+            sys.stdout.write("\033[K")
+            print(f"snr_db {snr_db[i]}: [" \
+                    + nhashes*"#" + (nchars-nhashes-1)*"." + "]", end='\r')
+
             _, _, _, _, y = self.generate_array(Nsamples, signal_type, Rnn, snr_db[i])
 
             # run MUSIC algorithm
@@ -166,6 +174,7 @@ class MUSICAnalyzer():
             # compute peak resolution
             # TODO!! - use bases? peak to median ratio?
    
+        print()   
         if(plot): 
             fig = plt.figure()
             plt.title(algorithm.replace("_", " ").title() + \
@@ -218,7 +227,8 @@ class MUSICAnalyzer():
             nchars = 50
             nhashes = int(nchars*i/Nsamples.size + 1)
             sys.stdout.write("\033[K")
-            print(f"Nsamples {Nsamples[i]}: [" + nhashes*"#" + (nchars-nhashes-1)*"." + "]", end='\r')
+            print(f"Nsamples {Nsamples[i]}: [" \
+                    + nhashes*"#" + (nchars-nhashes-1)*"." + "]", end='\r')
             _, _, _, _, y = self.generate_array(Nsamples[i], signal_type, Rnn, snr_db)
 
             # run MUSIC algorithm
@@ -363,13 +373,13 @@ if __name__ == "__main__":
     an = MUSICAnalyzer()
     snr_db = np.linspace(-30, 20, 50)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='standard', plot=True)
-    #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='toeplitz_difference', plot=True)
+    err, avg, std = an.metrics_vs_snr(snr_db, algorithm='toeplitz_difference', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='diagonal_difference', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='cumulants', plot=True)
    
     Nsamples = np.logspace(1, 6, 25, dtype='int') 
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-10, algorithm='standard', plot=True)
-    err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-15, algorithm='toeplitz_difference', plot=True)
+    #err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-15, algorithm='toeplitz_difference', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='diagonal_difference', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='cumulants', plot=True)
 

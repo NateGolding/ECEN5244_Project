@@ -70,14 +70,16 @@ def music_toeplitz_difference(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0
 
 if __name__ == "__main__":
     Nsamples = 1024
-    M = 16
+    M = 8
     N = 3
     theta = np.deg2rad([-30, 22, -15])
-    d = 1/4
+    d = 0.2499
     snr_db = 10
    
     # generate ULA configuration 
     ula = ULA(Nsamples=Nsamples, M=M, N=N, theta=theta, d=d)
+    ula.plot_AF(polar=False)
+    ula.plot_AF(polar=True)
     A = ula.manifold()
     s = ula.signals(pwr=[1, 0.8, 0.6])
 
