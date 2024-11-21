@@ -67,7 +67,7 @@ if __name__ == "__main__":
     snr_db = 20
    
     # generate ULA configuration 
-    ula = ULA(Nsamples=Nsamples, M=M, N=N, theta=theta, d=d)
+    ula = ULA(Nsamples=Nsamples, M=M, theta=theta, d=d)
     A = ula.manifold()
     s = ula.signals()
 

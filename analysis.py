@@ -191,7 +191,65 @@ class MUSICAnalyzer():
             plt.show()
 
         return err, avg_err, std_err, # peak_resolution
-    
+
+    def metrics_vs_snr_multiple(self, snr_db, algorithms, Nsamples=1024,
+                        signal_type='gaussian', Rnn=None, prom_threshold=0.01, plot=False):
+        """Gather relevant metrics from MUSIC estimator vs SNR for multiple algorithms at once
+
+        @param[in] snr_db Signal to noise ratio in decibels (array-like)
+        @param[in] algorithm MUSIC algorithms to analyze (array-like)
+        @param[in] Nsamples Number of samples per estimation
+        @param[in] signal_type Type of signal (gaussian or qpsk)
+        @param[in] Rnn Noise covariance matrix (Nsensors,Nsensors)
+        @param[in] prom_threshold Prominence threshold for peak finding as pct full scale
+        @param[in] plot Plotting switch (on/off)
+
+        @details Available algorithms are: 
+            - standard
+            - toeplitz_difference
+            - diagonal_difference
+            - cumulants
+
+        @retval Dictionary of expected angle error (across Nsignals) vs snr_db
+        @retval Dictionary of standard deviation of angle error (across Nsignals) vs snr_db
+        """
+        avg_err = dict()
+        std_err = dict()
+
+        algorithms = np.asarray(algorithms)
+        for algo in algorithms:
+            _, mu, sigma = self.metrics_vs_snr(snr_db, algorithm=algo, Nsamples=Nsamples,
+                                    signal_type=signal_type, Rnn=Rnn,
+                                    prom_threshold=prom_threshold, plot=False)
+            avg_err[algo] = mu
+            std_err[algo] = sigma
+
+        if(plot): 
+            fig1 = plt.figure(1)
+            plt.title("Bearing Estimate Expected Error vs SNR" + \
+                        f"\n{Nsamples} Samples")
+            plt.xlabel("SNR [dB]")
+            plt.ylabel("Expected Error [deg]")
+            for algo in algorithms:
+                plt.plot(snr_db, avg_err[algo], label=algo.title().replace('_', ' '))
+                plt.scatter(snr_db, avg_err[algo], marker='.', label=algo.title().replace('_', ' '))
+            plt.grid()
+            plt.legend()
+
+            fig2 = plt.figure(2)
+            plt.title("Bearing Estimate Error Standard Deviation vs SNR" + \
+                        f"\n{Nsamples} Samples")
+            plt.xlabel("SNR [dB]")
+            plt.ylabel("Error Standard Deviation [deg]")
+            for algo in algorithms:
+                plt.plot(snr_db, std_err[algo], label=algo.title().replace('_', ' '))
+                plt.scatter(snr_db, std_err[algo], marker='.', label=algo.title().replace('_', ' '))
+            plt.grid()
+            plt.legend()
+            plt.show()
+
+        return avg_err, std_err
+ 
     def metrics_vs_nsamples(self, Nsamples, snr_db=3, signal_type='gaussian', Rnn=None,
                         algorithm='standard', prom_threshold=0.01, plot=False):
         """Gather relevant metrics from MUSIC estimator vs Nsamples
@@ -308,6 +366,66 @@ class MUSICAnalyzer():
 
         return err, avg_err, std_err, # peak_resolution
 
+    def metrics_vs_nsamples_multiple(self, Nsamples, algorithms, snr_db=3,
+            signal_type='gaussian', Rnn=None, prom_threshold=0.01, plot=False):
+        """Gather relevant metrics from MUSIC estimator vs Nsamples
+
+        @param[in] Nsamples Number of samples per estimation (array-like)
+        @param[in] algorithms MUSIC algorithm to analyze (array-like)
+        @param[in] snr_db Signal to noise ratio in decibels
+        @param[in] signal_type Type of signal (gaussian or qpsk)
+        @param[in] Rnn Noise covariance matrix (Nsensors,Nsensors)
+        @param[in] prom_threshold Prominence threshold for peak finding as pct full scale
+        @param[in] plot Plotting switch (on/off)
+
+        @details Available algorithms are: 
+            - standard
+            - toeplitz_difference
+            - diagonal_difference
+            - cumulants
+
+        @retval Dictionary of expected angle error (across Nsignals) vs snr_db
+        @retval Dictionary of standard deviation of angle error (across Nsignals) vs snr_db
+        """
+        avg_err = dict()
+        std_err = dict()
+
+        algorithms = np.asarray(algorithms)
+        for algo in algorithms:
+            _, mu, sigma = self.metrics_vs_nsamples(Nsamples, algorithm=algo, snr_db=snr_db,
+                                    signal_type=signal_type, Rnn=Rnn,
+                                    prom_threshold=prom_threshold, plot=False)
+            avg_err[algo] = mu
+            std_err[algo] = sigma
+
+        if(plot): 
+            fig1 = plt.figure(1)
+            plt.title("Bearing Estimate Expected Error vs Nsamples" + \
+                        f"\n{round(snr_db, 2)}dB SNR")
+            plt.xlabel("Nsamples [-]")
+            plt.ylabel("Expected Error [deg]")
+            for algo in algorithms:
+                plt.plot(Nsamples, avg_err[algo], label=algo.title().replace('_', ' '))
+                plt.scatter(Nsamples, avg_err[algo], marker='.', label=algo.title().replace('_', ' '))
+            plt.xscale('log')
+            plt.grid()
+            plt.legend()
+
+            fig2 = plt.figure(2)
+            plt.title("Bearing Estimate Error Standard Deviation vs Nsamples" + \
+                        f"\n{round(snr_db, 2)}dB SNR")
+            plt.xlabel("SNR [dB]")
+            plt.ylabel("Error Standard Deviation [deg]")
+            for algo in algorithms:
+                plt.plot(Nsamples, std_err[algo], label=algo.title().replace('_', ' '))
+                plt.scatter(Nsamples, std_err[algo], marker='.', label=algo.title().replace('_', ' '))
+            plt.xscale('log')
+            plt.grid()
+            plt.legend()
+            plt.show()
+
+        return avg_err, std_err
+
     def metrics(self, snr_db, Nsamples, signal_type='gaussian', Rnn=None,
                         algorithm='standard', prom_threshold=0.01, plot=False):
         """Gather relevant metrics from MUSIC estimator vs Nsamples
@@ -372,15 +490,18 @@ if __name__ == "__main__":
 
     an = MUSICAnalyzer()
     snr_db = np.linspace(-30, 20, 50)
-    err, avg, std = an.metrics_vs_snr(snr_db, algorithm='standard', plot=True)
+    #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='standard', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='toeplitz_difference', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='diagonal_difference', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='cumulants', plot=True)
-   
+  
+    #an.metrics_vs_snr_multiple(snr_db, ['standard', 'diagonal_difference', 'toeplitz_difference'], plot=True)
+ 
     Nsamples = np.logspace(1, 6, 25, dtype='int') 
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-10, algorithm='standard', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-15, algorithm='toeplitz_difference', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='diagonal_difference', plot=True)
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='cumulants', plot=True)
-
     #avg, std = an.metrics(snr_db, Nsamples, algorithm='standard', plot=True)
+    
+    an.metrics_vs_nsamples_multiple(Nsamples, ['standard', 'diagonal_difference', 'toeplitz_difference'], plot=True)

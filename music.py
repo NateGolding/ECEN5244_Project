@@ -8,11 +8,11 @@ import noise as ns
 
 class ULA:
     """1-Dimensional Uniform Linear Array Description"""
-    def __init__(self, Nsamples=1024, M=16, N=3,
+    def __init__(self, Nsamples=1024, M=16,
                     theta=np.deg2rad([-15, 3, 8]), d=1/2):
         self.Nsamples = Nsamples
         self.M = M
-        self.N = N
+        self.N = theta.size
         self.theta = theta
         self.d = d
 
