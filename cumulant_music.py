@@ -44,16 +44,7 @@ def music_cumulants(y, Nsignals, d, max_peaks=np.inf, prom_threshold=0.01, plot=
         Py[i] = 1/np.abs(w @ w.conj().T).item()
 
     y_peaks = get_peaks(Py, prom_threshold, max_peaks)
-    
-    # handle spurious bearings
-    bearings = th[y_peaks]
-    A12 = np.exp(-1j*2*np.pi*d*np.sin(bearings))**(np.arange(M).reshape(-1,1))
-    A12_H = A12.conj().T
-    invterm = np.linalg.inv(A12_H@A12)
-    Rss12 = np.diag(invterm @ A12_H @ Ryy @ A12 @ invterm)
-    idx = np.argsort(Rss12)[::-1]
-    y_peaks = (y_peaks[idx])[:Nsignals]
-    
+     
     if(plot):
         plt.figure()
         plt.suptitle(f"Incident Bearings {np.rad2deg(theta)}")

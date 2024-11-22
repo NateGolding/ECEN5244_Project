@@ -12,6 +12,12 @@ import scipy.signal as ss
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+def dB2lin(db):
+    return 10**(db/10)
+
+def lin2dB(db):
+    return 10*np.log10(db) 
+
 def structured_noise(Rnn, nsamples=1, cmplx=True):
     """Generates noise samples of a prescribed covariance
 
@@ -31,20 +37,121 @@ def structured_noise(Rnn, nsamples=1, cmplx=True):
                                 1j*np.random.randn(Rnn.shape[0], nsamples))
     else:
         n = np.random.randn(Rnn.shape[0], nsamples)
-    return E @ (np.diag(D)**0.5) @ n
 
+    return E @ (np.diag(np.sqrt(D))) @ n
 
+def uniform_diagonal_cov(M, snr_db):
+    """Create uniform diagonal noise covariance matrix
 
+    @Note uses snr_db as if signal power is 1
+
+    @param[in] M Number of sensors
+    @param[in] snr_db Signal to noise ratio in dB
+
+    @retval Noise covariance matrix shaped (M,M)
+    """
+    snr = dB2lin(snr_db)
+    npwr = 1/snr
+    return npwr*np.eye(M)
+
+def nonuniform_diagonal_cov(M, snr_db_min, snr_db_max):
+    """Create non-uniform diagonal noise covariance matrix
+
+    Minimum and maximum noise variances are determined by the
+    parameters snr_db_max and snr_db_min assuming all signal
+    variances are 1. All other variances are uniformly sampled
+    from [snr_db_min, snr_db_max]. The final results are randomly
+    shuffled along the diagonal.
+
+    @param[in] M Number of sensors
+    @param[in] snr_db_min Minimum SNR in decibels
+    @param[in] snr_db_max Maximum SNR in decibels
+
+    @retval Noise covariance matrix (M,M)
+    """
+    nvar_min = 1/(dB2lin(snr_db_min))
+    nvar_max = 1/(dB2lin(snr_db_max))
+   
+    Rnn = np.random.uniform(nvar_min, nvar_max, M)
+    Rnn[:2] = [nvar_min, nvar_max]
+    Rnn = np.random.permutation(Rnn)
+    return np.diag(Rnn)
+
+def block_diagonal_cov():
+    raise NotImplementedError
+
+def symmetric_toeplitz_cov(M, snr_db, pmin=0, pmax=1):
+    """Create symmetric Toeplitz noise covariance matrix
+
+    Noise variance (main diagonal) is determined by the snr_db
+    parameter. The other diagonal elements are determined by
+    the noise variance and correlation coefficients randomly
+    sampled from [pmin, pmax] (default [0,1])
+
+    @param[in] M Number of sensors
+    @param[in] snr_db SNR in decibels
+    @param[in] pmin Minimum correlation coefficient (default 0)
+    @param[in] pmax Maximum correlation coefficient (default 1)
+
+    @retval Noise covariance matrix (M,M)
+    """
+    nvar = 1/(dB2lin(snr_db)) 
+    
+    # correlation coefficient matrix
+    p = np.random.uniform(pmin, pmax, size=M)
+    p[0] = 1
+    p = sc.linalg.toeplitz(p)
+
+    # covariance matrix
+    return nvar * p
+
+def symmetric_nontoeplitz_cov(M, snr_db_min, snr_db_max, pmin=0, pmax=1):
+    """Create symmetric non-Toeplitz noice covariance matrix
+
+    Minimum and maximum noise variances are determined by the
+    parameters snr_db_max and snr_db_min assuming all signal
+    variances are 1. All other variances are uniformly sampled
+    from [snr_db_min, snr_db_max]. The final results are shuffled
+    randomly along the diagonal. The rest of the matrix is filled
+    with a triangular matrix with values determined by the
+    noise variance and correlation coefficients randomly sampled
+    from [pmin, pmax], which is mirrored to maintain symmetry
+    
+    @param[in] M Number of sensors
+    @param[in] snr_db_min Minimum SNR in decibels
+    @param[in] snr_db_max Maximum SNR in decibels
+    @param[in] pmin Minimum correlation coefficient (default 0)
+    @param[in] pmax Maximum correlation coefficient (default 1)
+
+    @retval Noise covariance matrix (M,M)
+    """
+    nvar_min = 1/(dB2lin(snr_db_min))
+    nstd_min = np.sqrt(nvar_min)
+    
+    nvar_max = 1/(dB2lin(snr_db_max))
+    nstd_max = np.sqrt(nvar_max)
+    
+    # correlation coefficient matrix
+    p = np.random.uniform(pmin, pmax, size=(M,M))
+    p = np.triu(p) + np.triu(p).T
+    p[np.diag_indices(M)] = 1
+
+    # covariance matrix
+    Rnn = np.random.uniform(nstd_min, nstd_max, size=M)     # random values in [min, max]
+    Rnn[:2] = [nstd_min, nstd_max]                          # ensure min/max are present
+    Rnn = np.random.permutation(Rnn)                        # shuffle values
+    Rnn = Rnn.reshape((-1, 1)) * Rnn                        # (M,M) matrix of pairwise stds
+    Rnn = Rnn * p
+
+    return Rnn * p
 
 
 if __name__ == "__main__":
 
     # test structureed noise
-    Rnn = np.array([[1, 0.2, 0.01],
-                    [0.2, 1, 0.3],
-                    [0.01, 0.3, 1]])
+    Rnn = nonuniform_diagonal_cov(3, 0, 3)
 
-    n = structured_noise(Rnn, nsamples=10000)
+    n = structured_noise(Rnn, nsamples=1024)
     Rnn_est = (1/n.shape[-1]) * n @ (n.conj().T)
 
     # show histogram

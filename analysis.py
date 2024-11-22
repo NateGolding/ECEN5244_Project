@@ -414,7 +414,7 @@ class MUSICAnalyzer():
             fig2 = plt.figure(2)
             plt.title("Bearing Estimate Error Standard Deviation vs Nsamples" + \
                         f"\n{round(snr_db, 2)}dB SNR")
-            plt.xlabel("SNR [dB]")
+            plt.xlabel("Nsamples [-]")
             plt.ylabel("Error Standard Deviation [deg]")
             for algo in algorithms:
                 plt.plot(Nsamples, std_err[algo], label=algo.title().replace('_', ' '))
@@ -495,7 +495,7 @@ if __name__ == "__main__":
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='diagonal_difference', plot=True)
     #err, avg, std = an.metrics_vs_snr(snr_db, algorithm='cumulants', plot=True)
   
-    #an.metrics_vs_snr_multiple(snr_db, ['standard', 'diagonal_difference', 'toeplitz_difference'], plot=True)
+    #an.metrics_vs_snr_multiple(snr_db, ['standard', 'diagonal_difference', 'toeplitz_difference', 'cumulants'], plot=True)
  
     Nsamples = np.logspace(1, 6, 25, dtype='int') 
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, snr_db=-10, algorithm='standard', plot=True)
@@ -504,4 +504,4 @@ if __name__ == "__main__":
     #err, avg, std = an.metrics_vs_nsamples(Nsamples, algorithm='cumulants', plot=True)
     #avg, std = an.metrics(snr_db, Nsamples, algorithm='standard', plot=True)
     
-    an.metrics_vs_nsamples_multiple(Nsamples, ['standard', 'diagonal_difference', 'toeplitz_difference'], plot=True)
+    an.metrics_vs_nsamples_multiple(Nsamples, ['standard', 'diagonal_difference', 'toeplitz_difference', 'cumulants'], snr_db=-10, plot=True)
