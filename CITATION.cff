@@ -1,0 +1,26 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: MUSIC_DOA_Analyzer
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Nathan Golding
+    email: nathan.golding@colorado.edu
+    affiliation: University of Colorado Boulder
+repository-code: 'https://github.com/NateGolding/ECEN5244_Project'
+abstract: >-
+  An analysis of covariance differencing and higher order
+  cumulant methods for direction of arrival array processing
+  in the presence of colored noise fields.
+keywords:
+  - Multiple Signal Classifcation (MUSIC)
+  - Direction of Arrival
+  - Phased Arrays
+  - Colored Noise
+  - Covariance Differencing
+  - Higher Order Cumulants
+license: MIT
