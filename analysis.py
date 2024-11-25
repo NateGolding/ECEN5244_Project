@@ -199,6 +199,7 @@ class MUSICAnalyzer():
         """
         # parse input arguments
         plot = params['plot']
+        plotscale = params['plotscale']
         algorithm = params['algorithm']
         arraylabels = ['Nsamples', 'signalType', 'RnnType', 'snr_db_min',
                             'snr_db_max', 'pmin', 'pmax']
@@ -300,6 +301,7 @@ class MUSICAnalyzer():
             plt.scatter(param, avg_err, marker='.', label="Expected Error")
             plt.plot(param, std_err, label="Error Standard Deviation")
             plt.scatter(param, std_err, marker='.', label="Error Standard Deviation")
+            plt.xscale(plotscale)
             plt.grid()
             plt.legend()
             plt.show()
@@ -334,6 +336,7 @@ class MUSICAnalyzer():
         std_err = dict()
 
         plot = params['plot']
+        plotscale = params['plotscale']
         param = np.asarray(params[param_label])
         algorithms = np.asarray(params['algorithm'])
         for algo in algorithms:
@@ -352,6 +355,7 @@ class MUSICAnalyzer():
             for algo in algorithms:
                 plt.plot(param, avg_err[algo], label=algo.title().replace('_', ' '))
                 plt.scatter(param, avg_err[algo], marker='.', label=algo.title().replace('_', ' '))
+            plt.xscale(plotscale)
             plt.grid()
             plt.legend()
 
@@ -362,6 +366,7 @@ class MUSICAnalyzer():
             for algo in algorithms:
                 plt.plot(param, std_err[algo], label=algo.title().replace('_', ' '))
                 plt.scatter(param, std_err[algo], marker='.', label=algo.title().replace('_', ' '))
+            plt.xscale(plotscale)
             plt.grid()
             plt.legend()
             plt.show()
@@ -410,22 +415,28 @@ class MUSICAnalyzer():
 
 if __name__ == "__main__":
 
-    snr_db_min = np.linspace(-30, 20, 50)
-    snr_db_spread = 40
+    #Nsamples = 1024
+    Nsamples = np.logspace(1, 5, 20, dtype='int')
+    pmin = 0.5
+    pspread = 0.25
+    #snr_db_min = np.linspace(-30, 20, 50)
+    snr_db_min = 0
+    snr_db_spread = 10
 
     params = {
         'plot' : True,
-        'Nsamples' : 1024,
+        'plotscale' : 'log',
+        'Nsamples' : Nsamples,
         'signalType' : 'gaussian',
-        'RnnType' : 'nonuniform_diagonal',
+        'RnnType' : 'symmetric_toeplitz',
         'snr_db_min' : snr_db_min,
         'snr_db_max' : snr_db_min + snr_db_spread,
-        'pmin' : 0,
-        'pmax' : 1,
+        'pmin' : pmin,
+        'pmax' : pmin + pspread,
         'algorithm' : ['standard', 'toeplitz_difference', 'diagonal_difference', 'cumulants'],
         'prom_threshold' : 0.01,
         'max_peaks' : np.inf
     }
 
     an = MUSICAnalyzer()
-    an.metrics_vs_param(params, 'snr_db_min', ['snr_db_max'])
+    an.metrics_vs_param(params, 'Nsamples')

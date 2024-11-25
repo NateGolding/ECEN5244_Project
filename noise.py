@@ -96,11 +96,19 @@ def symmetric_toeplitz_cov(M, snr_db, pmin=0, pmax=1):
     @retval Noise covariance matrix (M,M)
     """
     nvar = 1/(dB2lin(snr_db)) 
-    
-    # correlation coefficient matrix
-    p = np.random.uniform(pmin, pmax, size=M)
-    p[0] = 1
-    p = sc.linalg.toeplitz(p)
+           
+    while(1):
+        # correlation coefficient matrix
+        p = np.empty(M)
+        p[0] = 1
+        p[1:3] = [pmin, pmax]
+        p[3:] = np.random.uniform(pmin, pmax, size=M-3)
+        p[1:] = np.random.permutation(p[1:])
+        p = sc.linalg.toeplitz(p)
+
+        D, _ = np.linalg.eig(p)
+        if((D >= 0).all()):
+            break
 
     # covariance matrix
     return nvar * p
@@ -149,10 +157,28 @@ def symmetric_nontoeplitz_cov(M, snr_db_min, snr_db_max, pmin=0, pmax=1):
 if __name__ == "__main__":
 
     # test structureed noise
-    Rnn = nonuniform_diagonal_cov(3, 0, 3)
+
+    offset = np.linspace(0, 0.75, 5)
+    spread = np.linspace(0.1, 0.75, 20)
+    avgs = np.empty((offset.size, spread.size))
+    for m in range(offset.size):
+        for k in range(spread.size):
+            nits = np.zeros(1000)
+            for i in range(1000):
+                Rnn, nits[i] = symmetric_toeplitz_cov(8, np.random.uniform(-30, 20), 0.75, spread[k])
+            print(f"Averages {np.mean(nits)} Iterations to get PSD matrix")
+            avgs[m,k] = np.mean(nits)
+
+    plt.figure()
+    plt.plot(spread, avgs)
+    plt.grid()
+    plt.show()
 
     n = structured_noise(Rnn, nsamples=1024)
     Rnn_est = (1/n.shape[-1]) * n @ (n.conj().T)
+
+    import sys
+    sys.exit()
 
     # show histogram
     fig, ax = plt.subplots(3,2)
